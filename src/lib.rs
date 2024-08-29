@@ -39,11 +39,24 @@ impl ArpPusher {
     }
 
     pub fn send_reply(&mut self, src: (MacAddr, Ipv4Addr), dst: (MacAddr, Ipv4Addr)) -> Result<()> {
+        self.send_arp(true, src, dst)
+    }
+
+    pub fn send_req(&mut self, src: (MacAddr, Ipv4Addr), dst: (MacAddr, Ipv4Addr)) -> Result<()> {
+        self.send_arp(false, src, dst)
+    }
+
+    fn send_arp(
+        &mut self,
+        oper: bool,
+        src: (MacAddr, Ipv4Addr),
+        dst: (MacAddr, Ipv4Addr),
+    ) -> Result<()> {
         use pnet::packet::Packet;
         let mut eth_buf = [0u8; 42];
         let mut eth_pkt = self.eth_create(&mut eth_buf, src.0, dst.0)?;
         let mut arp_buf = [0u8; 28];
-        let arp_pkt = self.arp_create(&mut arp_buf, true, src, dst)?;
+        let arp_pkt = self.arp_create(&mut arp_buf, oper, src, dst)?;
         eth_pkt.set_payload(arp_pkt.packet());
         self.tx.send_to(&eth_buf, None);
         Ok(())
