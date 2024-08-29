@@ -42,8 +42,12 @@ impl ArpPusher {
         self.send_arp(true, src, dst)
     }
 
-    pub fn send_req(&mut self, src: (MacAddr, Ipv4Addr), dst: (MacAddr, Ipv4Addr)) -> Result<()> {
-        self.send_arp(false, src, dst)
+    pub fn send_req(&mut self, src: (MacAddr, Ipv4Addr), dst: Ipv4Addr) -> Result<()> {
+        self.send_arp(
+            false,
+            src,
+            (MacAddr::new(255, 255, 255, 255, 255, 255), dst),
+        )
     }
 
     fn send_arp(
@@ -96,7 +100,11 @@ impl ArpPusher {
         }
         arp_pkt.set_sender_hw_addr(sender.0);
         arp_pkt.set_sender_proto_addr(sender.1);
-        arp_pkt.set_target_hw_addr(target.0);
+        if target.0.is_broadcast() {
+            arp_pkt.set_target_hw_addr(MacAddr(0, 0, 0, 0, 0, 0));
+        } else {
+            arp_pkt.set_target_hw_addr(target.0);
+        }
         arp_pkt.set_target_proto_addr(target.1);
         Ok(arp_pkt)
     }

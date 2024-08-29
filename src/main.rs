@@ -3,8 +3,8 @@ fn main() {
     println!("MAC = {}", ap.get_mac().unwrap());
 
     ap.send_req(
-        (ap.get_mac().unwrap(), [192, 168, 33, 22].into()),
-        ([0u8, 0, 0, 0, 0, 0].into(), [0u8, 0, 0, 0].into()),
+        (ap.get_mac().unwrap(), [192, 168, 86, 72].into()),
+        [192, 168, 86, 1].into(),
     )
     .unwrap();
 }
