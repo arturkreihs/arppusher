@@ -9,11 +9,9 @@ use pnet::packet::ethernet::MutableEthernetPacket;
 pub use pnet::util::MacAddr;
 use std::net::Ipv4Addr;
 
-struct ArpPusher {
+pub struct ArpPusher {
     iface: NetworkInterface,
     tx: Box<dyn DataLinkSender>,
-    eth_buf: [u8; 42],
-    arp_buf: [u8; 28],
 }
 
 impl ArpPusher {
@@ -33,12 +31,7 @@ impl ArpPusher {
             _ => bail!("can't get Ethernet channel"),
         };
 
-        Ok(Self {
-            iface,
-            tx,
-            eth_buf: [0u8; 42],
-            arp_buf: [0u8; 28],
-        })
+        Ok(Self { iface, tx })
     }
 
     pub fn get_mac(&self) -> Result<MacAddr> {
@@ -47,31 +40,38 @@ impl ArpPusher {
 
     pub fn send_reply(&mut self, src: (MacAddr, Ipv4Addr), dst: (MacAddr, Ipv4Addr)) -> Result<()> {
         use pnet::packet::Packet;
-        let arp_pkt = self.arp_create(true, src, dst)?;
-        let mut eth_pkt = self.eth_create(src.0, dst.0)?;
+        let mut eth_buf = [0u8; 42];
+        let mut eth_pkt = self.eth_create(&mut eth_buf, src.0, dst.0)?;
+        let mut arp_buf = [0u8; 28];
+        let arp_pkt = self.arp_create(&mut arp_buf, true, src, dst)?;
         eth_pkt.set_payload(arp_pkt.packet());
-        self.tx.send_to(&self.eth_buf, None);
+        self.tx.send_to(&eth_buf, None);
         Ok(())
     }
 
-    fn eth_create(&mut self, s_mac: MacAddr, d_mac: MacAddr) -> Result<MutableEthernetPacket> {
-        let mut eth_pkt = MutableEthernetPacket::new(&mut self.eth_buf)
-            .ok_or(anyhow!("can't construct eth pkt"))?;
+    fn eth_create<'a>(
+        &self,
+        buf: &'a mut [u8; 42],
+        s_mac: MacAddr,
+        d_mac: MacAddr,
+    ) -> Result<MutableEthernetPacket<'a>> {
+        let mut eth_pkt =
+            MutableEthernetPacket::new(buf).ok_or(anyhow!("can't construct eth pkt"))?;
         eth_pkt.set_source(s_mac);
         eth_pkt.set_destination(d_mac);
         eth_pkt.set_ethertype(EtherTypes::Arp);
         Ok(eth_pkt)
     }
 
-    fn arp_create(
-        &mut self,
+    fn arp_create<'a>(
+        &self,
+        buf: &'a mut [u8; 28],
         oper: bool,
         sender: (MacAddr, Ipv4Addr),
         target: (MacAddr, Ipv4Addr),
-    ) -> Result<MutableArpPacket> {
+    ) -> Result<MutableArpPacket<'a>> {
         use pnet::packet::arp::ArpHardwareTypes;
-        let mut arp_pkt =
-            MutableArpPacket::new(&mut self.arp_buf).ok_or(anyhow!("can't construct arp pkt"))?;
+        let mut arp_pkt = MutableArpPacket::new(buf).ok_or(anyhow!("can't construct arp pkt"))?;
         arp_pkt.set_hardware_type(ArpHardwareTypes::Ethernet);
         arp_pkt.set_protocol_type(EtherTypes::Ipv4);
         arp_pkt.set_hw_addr_len(6);
